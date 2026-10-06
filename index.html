@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Paisa Khata — Spent Tracker</title>
+  <meta name="description" content="A personal spent tracker — add, filter and analyse your expenses." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>₹</text></svg>" />
+</head>
+<body>
+
+  <!-- ============ AUTH SCREEN ============ -->
+  <section id="authView" class="auth hidden" aria-label="Sign in">
+    <div class="auth-brand">
+      <div class="auth-brand-inner">
+        <div class="brand-mark">₹</div>
+        <h1 class="brand-title">Paisa<br>Khata</h1>
+        <p class="brand-sub">Every rupee, written down.<br>Add it in seconds, see where it goes.</p>
+        <div class="coin-row" aria-hidden="true">
+          <span class="coin c1">₹</span><span class="coin c2">₹</span><span class="coin c3">₹</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="auth-panel">
+      <div class="auth-card" id="authCard">
+        <div class="auth-tabs" role="tablist">
+          <button class="auth-tab active" id="tabLogin" role="tab" aria-selected="true">Log in</button>
+          <button class="auth-tab" id="tabRegister" role="tab" aria-selected="false">Register</button>
+          <span class="auth-tab-ink" aria-hidden="true"></span>
+        </div>
+
+        <!-- Login -->
+        <form id="loginForm" class="auth-form" novalidate>
+          <div class="field">
+            <label for="loginUser">Username</label>
+            <input id="loginUser" type="text" autocomplete="username" placeholder="e.g. vmi" />
+            <small class="err" id="loginUserErr"></small>
+          </div>
+          <div class="field">
+            <label for="loginPass">Password</label>
+            <div class="pass-wrap">
+              <input id="loginPass" type="password" autocomplete="current-password" placeholder="Your password" />
+              <button type="button" class="pass-eye" data-eye="loginPass" aria-label="Show password">👁</button>
+            </div>
+            <small class="err" id="loginPassErr"></small>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit"><span class="btn-text">Open my khata</span><span class="btn-loader" aria-hidden="true"></span></button>
+          <p class="auth-hint">New here? <button type="button" class="linklike" id="goRegister">Create an account</button></p>
+        </form>
+
+        <!-- Register -->
+        <form id="registerForm" class="auth-form hidden" novalidate>
+          <div class="field">
+            <label for="regName">Display name</label>
+            <input id="regName" type="text" placeholder="How should we greet you?" />
+            <small class="err" id="regNameErr"></small>
+          </div>
+          <div class="field">
+            <label for="regUser">Username</label>
+            <input id="regUser" type="text" autocomplete="username" placeholder="letters & numbers, min 3" />
+            <small class="err" id="regUserErr"></small>
+          </div>
+          <div class="field">
+            <label for="regPass">Password</label>
+            <div class="pass-wrap">
+              <input id="regPass" type="password" autocomplete="new-password" placeholder="min 6, letter + number" />
+              <button type="button" class="pass-eye" data-eye="regPass" aria-label="Show password">👁</button>
+            </div>
+            <small class="err" id="regPassErr"></small>
+          </div>
+          <div class="field">
+            <label for="regPass2">Confirm password</label>
+            <input id="regPass2" type="password" autocomplete="new-password" placeholder="Type it again" />
+            <small class="err" id="regPass2Err"></small>
+          </div>
+          <button class="btn btn-primary btn-block" type="submit"><span class="btn-text">Create account</span><span class="btn-loader" aria-hidden="true"></span></button>
+          <p class="auth-hint">Already registered? <button type="button" class="linklike" id="goLogin">Log in</button></p>
+        </form>
+      </div>
+      <button class="theme-toggle auth-theme" id="authThemeToggle" aria-label="Toggle dark mode">
+        <span class="tt-sun">☀️</span><span class="tt-moon">🌙</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ APP SHELL ============ -->
+  <div id="appView" class="app hidden">
+
+    <aside class="sidebar">
+      <div class="side-brand">
+        <span class="brand-mark sm">₹</span>
+        <span class="side-brand-name">Paisa Khata</span>
+      </div>
+
+      <nav class="side-nav" aria-label="Main">
+        <button class="nav-btn active" data-page="add">
+          <span class="nav-ico">✍️</span><span class="nav-label">Add Spent</span>
+        </button>
+        <button class="nav-btn" data-page="list">
+          <span class="nav-ico">📒</span><span class="nav-label">All Spent</span>
+        </button>
+        <button class="nav-btn" data-page="dash">
+          <span class="nav-ico">📊</span><span class="nav-label">Dashboard</span>
+        </button>
+      </nav>
+
+      <div class="side-foot">
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode">
+          <span class="tt-sun">☀️</span><span class="tt-moon">🌙</span>
+        </button>
+        <button class="btn btn-ghost btn-sm" id="exportBtn" title="Download your data as JSON (commit it to git to sync)">⬇ Export JSON</button>
+        <div class="user-chip">
+          <span class="avatar" id="userAvatar">V</span>
+          <span class="user-name" id="userName">vmi</span>
+          <button class="logout" id="logoutBtn" title="Log out">⎋</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="top-greet" id="greet">Good morning</p>
+          <h2 class="top-title" id="pageTitle">Add Spent</h2>
+        </div>
+        <div class="top-right">
+          <div class="today-spent">
+            <span>Today</span>
+            <strong id="todaySpent">₹0</strong>
+          </div>
+          <button class="logout-top" id="logoutTop" title="Log out" aria-label="Log out">⎋</button>
+        </div>
+      </header>
+
+      <!-- ===== PAGE 1 : ADD SPENT ===== -->
+      <section class="page active" id="page-add">
+        <form id="spentForm" class="spent-card" novalidate>
+          <p class="spent-card-eyebrow">New entry · <span id="addDateLabel"></span></p>
+
+          <div class="amount-stage">
+            <span class="rupee">₹</span>
+            <input id="amountInput" class="amount-input" type="text" inputmode="decimal"
+                   placeholder="0" autocomplete="off" aria-label="Spent amount" />
+          </div>
+          <small class="err center" id="amountErr"></small>
+
+          <div class="quick-amounts" aria-label="Quick amounts">
+            <button type="button" class="chip" data-amt="50">₹50</button>
+            <button type="button" class="chip" data-amt="100">₹100</button>
+            <button type="button" class="chip" data-amt="200">₹200</button>
+            <button type="button" class="chip" data-amt="500">₹500</button>
+            <button type="button" class="chip" data-amt="1000">₹1,000</button>
+          </div>
+
+          <div class="field">
+            <label for="detailsInput">Spent details</label>
+            <textarea id="detailsInput" rows="2" maxlength="200" placeholder="What was it? e.g. Lunch at office canteen"></textarea>
+            <small class="err" id="detailsErr"></small>
+          </div>
+
+          <div class="field">
+            <div class="label-row">
+              <label>Spent category</label>
+              <button type="button" class="linklike" id="manageCatsBtn">Manage categories</button>
+            </div>
+            <div class="cat-grid" id="catGrid" role="radiogroup" aria-label="Spent category"></div>
+            <small class="err" id="categoryErr"></small>
+          </div>
+
+          <div class="field field-date">
+            <label for="dateInput">Date</label>
+            <input id="dateInput" type="date" />
+          </div>
+
+          <button class="btn btn-primary btn-block btn-lg" type="submit">
+            <span class="btn-text">Add to khata</span><span class="btn-loader" aria-hidden="true"></span>
+          </button>
+        </form>
+      </section>
+
+      <!-- ===== PAGE 2 : ALL SPENT ===== -->
+      <section class="page" id="page-list">
+        <div class="filters-card">
+          <div class="filters-row">
+            <div class="f-search">
+              <span class="search-ico">🔍</span>
+              <input id="searchInput" type="search" placeholder="Search details or category…" />
+            </div>
+            <select id="filterCategory" aria-label="Filter by category">
+              <option value="">All categories</option>
+            </select>
+            <select id="filterMonth" aria-label="Filter by month">
+              <option value="">Any month</option>
+            </select>
+            <select id="filterYear" aria-label="Filter by year">
+              <option value="">Any year</option>
+            </select>
+            <div class="f-dates">
+              <input id="filterFrom" type="date" aria-label="From date" />
+              <span class="f-dash">→</span>
+              <input id="filterTo" type="date" aria-label="To date" />
+            </div>
+          </div>
+          <div class="active-filters" id="activeFilters" aria-live="polite"></div>
+        </div>
+
+        <div class="list-wrap">
+          <ul class="spent-list" id="spentList"></ul>
+          <div class="empty hidden" id="listEmpty">
+            <p class="empty-big">Nothing in the khata yet</p>
+            <p>Add your first spent and it will show up here.</p>
+            <button class="btn btn-primary" data-page-jump="add">Add Spent</button>
+          </div>
+        </div>
+
+        <footer class="list-foot" id="listFoot">
+          <span id="listCount">0 records</span>
+          <strong id="listTotal">₹0</strong>
+        </footer>
+      </section>
+
+      <!-- ===== PAGE 3 : DASHBOARD ===== -->
+      <section class="page" id="page-dash">
+        <div class="dash-filters">
+          <select id="dashMonth" aria-label="Dashboard month">
+            <option value="">All months</option>
+          </select>
+          <select id="dashYear" aria-label="Dashboard year">
+            <option value="">All years</option>
+          </select>
+          <div class="f-dates">
+            <input id="dashFrom" type="date" aria-label="From date" />
+            <span class="f-dash">→</span>
+            <input id="dashTo" type="date" aria-label="To date" />
+          </div>
+          <button class="btn btn-ghost btn-sm" id="dashClear">Clear</button>
+        </div>
+
+        <div class="stat-row">
+          <article class="stat">
+            <p class="stat-label">Total spent</p>
+            <p class="stat-value" id="statTotal">₹0</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Records</p>
+            <p class="stat-value" id="statCount">0</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Average / record</p>
+            <p class="stat-value" id="statAvg">₹0</p>
+          </article>
+          <article class="stat">
+            <p class="stat-label">Top category</p>
+            <p class="stat-value stat-small" id="statTop">—</p>
+          </article>
+        </div>
+
+        <div class="dash-grid">
+          <article class="panel">
+            <h3 class="panel-title">Where it went</h3>
+            <div class="donut-wrap">
+              <svg id="donutChart" viewBox="0 0 220 220" role="img" aria-label="Spend by category"></svg>
+              <div class="donut-center">
+                <span id="donutTotal">₹0</span>
+                <small>total</small>
+              </div>
+            </div>
+            <ul class="legend" id="donutLegend"></ul>
+          </article>
+
+          <article class="panel">
+            <h3 class="panel-title">Month by month</h3>
+            <div class="bars" id="barChart"></div>
+          </article>
+
+          <article class="panel panel-wide">
+            <h3 class="panel-title">Recent entries</h3>
+            <ul class="recent-list" id="recentList"></ul>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <!-- Mobile bottom nav -->
+    <nav class="bottom-nav" aria-label="Main">
+      <button class="nav-btn active" data-page="add"><span class="nav-ico">✍️</span><span class="nav-label">Add</span></button>
+      <button class="nav-btn" data-page="list"><span class="nav-ico">📒</span><span class="nav-label">All Spent</span></button>
+      <button class="nav-btn" data-page="dash"><span class="nav-ico">📊</span><span class="nav-label">Dashboard</span></button>
+    </nav>
+  </div>
+
+  <!-- ============ RIGHT DRAWER : CATEGORIES ============ -->
+  <div class="drawer-overlay hidden" id="catOverlay"></div>
+  <aside class="drawer hidden" id="catDrawer" aria-label="Manage categories">
+    <header class="drawer-head">
+      <h3>Categories</h3>
+      <button class="drawer-close" data-close="cat" aria-label="Close">✕</button>
+    </header>
+    <form id="addCatForm" class="drawer-addcat">
+      <input id="newCatInput" type="text" maxlength="24" placeholder="New category name" />
+      <button class="btn btn-primary btn-sm" type="submit">Add</button>
+    </form>
+    <small class="err" id="catAddErr"></small>
+    <ul class="cat-manage-list" id="catManageList"></ul>
+  </aside>
+
+  <!-- ============ RIGHT DRAWER : EDIT RECORD ============ -->
+  <div class="drawer-overlay hidden" id="editOverlay"></div>
+  <aside class="drawer hidden" id="editDrawer" aria-label="Edit record">
+    <header class="drawer-head">
+      <h3>Edit record</h3>
+      <button class="drawer-close" data-close="edit" aria-label="Close">✕</button>
+    </header>
+    <form id="editForm" class="drawer-form" novalidate>
+      <div class="field">
+        <label for="editAmount">Spent amount</label>
+        <input id="editAmount" type="text" inputmode="decimal" />
+        <small class="err" id="editAmountErr"></small>
+      </div>
+      <div class="field">
+        <label for="editDetails">Spent details</label>
+        <textarea id="editDetails" rows="2" maxlength="200"></textarea>
+        <small class="err" id="editDetailsErr"></small>
+      </div>
+      <div class="field">
+        <label for="editCategory">Spent category</label>
+        <select id="editCategory"></select>
+      </div>
+      <div class="field">
+        <label for="editDate">Date</label>
+        <input id="editDate" type="date" />
+      </div>
+      <button class="btn btn-primary btn-block" type="submit"><span class="btn-text">Save changes</span><span class="btn-loader" aria-hidden="true"></span></button>
+    </form>
+  </aside>
+
+  <!-- ============ DELETE CONFIRM MODAL ============ -->
+  <div class="modal-overlay hidden" id="confirmOverlay">
+    <div class="modal" role="alertdialog" aria-labelledby="confirmTitle">
+      <h3 id="confirmTitle">Delete this record?</h3>
+      <p class="modal-sub" id="confirmSub">This can't be undone.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="confirmCancel">Keep it</button>
+        <button class="btn btn-danger" id="confirmDelete">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-zone" id="toastZone" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
