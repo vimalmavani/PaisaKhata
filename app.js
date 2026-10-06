@@ -64,6 +64,25 @@
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const catIcon = (cat) => { for (const [re, ico] of CAT_ICONS) if (re.test(cat)) return ico; return "💸"; };
 
+  function yearsFromData(expenses) {
+    const ys = [...new Set(expenses.map((e) => String(e.date).slice(0, 4)).filter((y) => /^\d{4}$/.test(y)))];
+    const cur = String(new Date().getFullYear());
+    if (!ys.includes(cur)) ys.push(cur);
+    return ys.sort().reverse();
+  }
+
+  function normalizeData(d) {
+    d = d || {};
+    return {
+      categories: Array.isArray(d.categories) ? d.categories : [],
+      expenses: (Array.isArray(d.expenses) ? d.expenses : []).map((e) => ({
+        ...e,
+        date: String(e.date).slice(0, 10),
+        amount: Number(e.amount) || 0,
+      })),
+    };
+  }
+
   function userData() {
     if (!store[currentUser.username]) {
       store[currentUser.username] = { categories: [...DEFAULT_CATS], expenses: [] };
@@ -157,7 +176,7 @@
       await flushQueue();
       const res = await apiGet({ action: "getData", username: currentUser.username });
       if (res.ok) {
-        store[currentUser.username] = res.data;
+        store[currentUser.username] = normalizeData(res.data);
         saveStore();
         refreshTodaySpent();
         const active = document.querySelector(".page.active");
@@ -226,7 +245,7 @@
   function startSession(user, data) {
     currentUser = { username: user.username, name: user.name || user.username };
     localStorage.setItem(LS_SESSION, JSON.stringify(currentUser));
-    if (data) { store[currentUser.username] = data; saveStore(); }
+    if (data) { store[currentUser.username] = normalizeData(data); saveStore(); }
     enterApp();
   }
 
@@ -502,7 +521,7 @@
     const cats = [...new Set([...d.categories, ...d.expenses.map((e) => e.category)])];
     fillSelect($("filterCategory"), cats.map((c) => [c, c]), "All categories", F.cat);
     fillSelect($("filterMonth"), MONTHS.map((m, i) => [String(i + 1), m]), "Any month", F.month);
-    const years = [...new Set(d.expenses.map((e) => e.date.slice(0, 4)))].sort().reverse();
+    const years = yearsFromData(d.expenses);
     fillSelect($("filterYear"), years.map((y) => [y, y]), "Any year", F.year);
   }
 
@@ -595,6 +614,7 @@
       li.className = "spent-item";
       li.style.animationDelay = Math.min(i * 30, 300) + "ms";
       li.innerHTML = `
+        <input type="checkbox" class="row-check" ${selected.has(e.id) ? "checked" : ""} aria-label="Select record" />
         <span class="item-ico">${catIcon(e.category)}</span>
         <div class="item-body">
           <p class="item-details">${esc(e.details)}</p>
@@ -608,13 +628,74 @@
       const [editBtn, delBtn] = li.querySelectorAll(".icon-btn");
       editBtn.onclick = () => openEdit(e.id);
       delBtn.onclick = () => askDelete(e.id, li);
+      li.querySelector(".row-check").addEventListener("change", (ev) => {
+        if (ev.target.checked) selected.add(e.id); else selected.delete(e.id);
+        updateSelTools();
+      });
       ul.appendChild(li);
     });
 
     const total = items.reduce((a, e) => a + e.amount, 0);
     $("listCount").textContent = `${items.length} record${items.length === 1 ? "" : "s"}`;
     $("listTotal").textContent = money(total);
+    updateSelTools();
   }
+
+  /* ---------------- selection + PDF export ---------------- */
+  const selected = new Set();
+
+  function updateSelTools() {
+    const items = filteredExpenses();
+    const sa = $("selectAll");
+    const allPicked = items.length > 0 && items.every((i) => selected.has(i.id));
+    sa.checked = allPicked;
+    sa.indeterminate = !allPicked && items.some((i) => selected.has(i.id));
+    $("selCount").textContent = selected.size ? `${selected.size} selected` : "";
+  }
+
+  $("selectAll").addEventListener("change", (e) => {
+    const items = filteredExpenses();
+    items.forEach((i) => { if (e.target.checked) selected.add(i.id); else selected.delete(i.id); });
+    renderList();
+  });
+
+  $("exportPdfBtn").addEventListener("click", () => {
+    const items = selected.size
+      ? userData().expenses.filter((e) => selected.has(e.id))
+      : filteredExpenses();
+    if (!items.length) { toast("Nothing to export", "⚠️"); return; }
+
+    const sorted = [...items].sort((a, b) => b.date.localeCompare(a.date));
+    const rows = sorted.map((e) =>
+      `<tr><td>${esc(prettyDate(e.date))}</td><td>${esc(e.details)}</td><td>${esc(e.category)}</td><td class="amt">${money(e.amount)}</td></tr>`
+    ).join("");
+    const total = items.reduce((a, e) => a + e.amount, 0);
+
+    const w = window.open("", "_blank");
+    if (!w) { toast("Allow pop-ups to export the PDF", "⚠️"); return; }
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+      <title>Paisa Khata — Spent Report</title><style>
+        body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:28px;}
+        h1{font-size:20px;margin:0 0 2px;}
+        .sub{color:#666;font-size:12px;margin:0 0 18px;}
+        table{width:100%;border-collapse:collapse;font-size:13px;}
+        th,td{border-bottom:1px solid #ddd;padding:8px 6px;text-align:left;vertical-align:top;}
+        th{background:#f1f1f5;}
+        .amt{text-align:right;white-space:nowrap;}
+        tfoot td{font-weight:bold;border-top:2px solid #111;}
+        @media print{body{padding:0;}}
+      </style></head><body>
+      <h1>Paisa Khata — Spent Report</h1>
+      <p class="sub">${esc(currentUser.name || currentUser.username)} · generated ${esc(prettyDate(todayStr()))} · ${items.length} record${items.length === 1 ? "" : "s"}${selected.size ? " (selected)" : ""}</p>
+      <table>
+        <thead><tr><th>Date</th><th>Details</th><th>Category</th><th class="amt">Amount</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td colspan="3">Total</td><td class="amt">${money(total)}</td></tr></tfoot>
+      </table>
+      <scr` + `ipt>window.onload = () => window.print();</scr` + `ipt>
+      </body></html>`);
+    w.document.close();
+  });
 
   /* ---------------- edit drawer ---------------- */
   function openEdit(id) {
@@ -691,6 +772,7 @@
     setTimeout(() => {
       const d = userData();
       d.expenses = d.expenses.filter((x) => x.id !== id);
+      selected.delete(id);
       saveStore();
       renderList();
       refreshTodaySpent();
@@ -705,7 +787,7 @@
 
   function buildDashFilterOptions() {
     fillSelect($("dashMonth"), MONTHS.map((m, i) => [String(i + 1), m]), "All months", DF.month);
-    const years = [...new Set(userData().expenses.map((e) => e.date.slice(0, 4)))].sort().reverse();
+    const years = yearsFromData(userData().expenses);
     fillSelect($("dashYear"), years.map((y) => [y, y]), "All years", DF.year);
     $("dashFrom").value = DF.from;
     $("dashTo").value = DF.to;
